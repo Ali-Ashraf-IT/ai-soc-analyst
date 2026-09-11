@@ -2,6 +2,8 @@ import streamlit as st
 import json
 import pandas as pd
 import datetime
+import plotly.graph_objects as go
+import plotly.express as px
 
 from modules.log_parser import LogParser
 from modules.ioc_extractor import IOCExtractor
@@ -15,266 +17,384 @@ from modules.response_engine import ResponseEngine
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="AI SOC Analyst — Incident Response Platform",
+    page_title="AI SOC Analyst",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
-# GLOBAL CSS — Dark SIEM Dashboard Theme
+# CSS — Exabeam / QRadar inspired dark theme
 # ─────────────────────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-/* ── Base ───────────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'Inter', sans-serif;
-    background-color: #070d1a;
-    color: #cdd6f4;
-}
-.stApp { background-color: #070d1a; }
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; }
+html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+.stApp { background: #0b0f1e !important; }
+.main .block-container { padding: 0 1.5rem 2rem 1.5rem; max-width: 100%; }
 
-/* ── Sidebar ────────────────────────────────────────────────── */
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #0b0f1e; }
+::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 3px; }
+
+/* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0d1526 0%, #0a1020 100%);
-    border-right: 1px solid #1e2d4a;
+    background: #080c18 !important;
+    border-right: 1px solid #162035;
+    min-width: 270px !important;
 }
-[data-testid="stSidebar"] * { color: #a6adc8 !important; }
+[data-testid="stSidebar"] > div:first-child { padding-top: 0; }
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span { color: #8892a4 !important; font-size: 12px !important; }
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
-[data-testid="stSidebar"] h3 { color: #cdd6f4 !important; }
-[data-testid="stSidebar"] .stButton>button {
-    background: linear-gradient(135deg, #1e3a5f, #0f2d4a);
-    color: #74c7ec !important;
-    border: 1px solid #1e4a7a;
-    border-radius: 6px;
-    font-weight: 600;
-    width: 100%;
-    transition: all 0.2s;
+[data-testid="stSidebar"] h3 { color: #c9d1e0 !important; }
+[data-testid="stSidebar"] .stTextInput > label,
+[data-testid="stSidebar"] .stTextArea > label,
+[data-testid="stSidebar"] .stFileUploader > label { color: #8892a4 !important; font-size: 11px !important; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+[data-testid="stSidebar"] .stTextInput input,
+[data-testid="stSidebar"] .stTextArea textarea {
+    background: #101624 !important;
+    border: 1px solid #1e3050 !important;
+    color: #c9d1e0 !important;
+    border-radius: 5px !important;
+    font-size: 13px !important;
 }
-[data-testid="stSidebar"] .stButton>button:hover {
-    background: linear-gradient(135deg, #2a5080, #1a3d60);
-    border-color: #74c7ec;
-    transform: translateY(-1px);
+[data-testid="stSidebar"] .stTextInput input:focus,
+[data-testid="stSidebar"] .stTextArea textarea:focus {
+    border-color: #3b7dd8 !important;
+    box-shadow: 0 0 0 2px rgba(59,125,216,0.2) !important;
 }
 
-/* ── Headers ────────────────────────────────────────────────── */
-h1, h2, h3 { color: #cdd6f4; }
-h1 { border-bottom: 2px solid #1e3a5f; padding-bottom: 8px; }
+/* ── Buttons ── */
+.stButton > button {
+    border-radius: 6px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    padding: 8px 16px !important;
+    transition: all 0.18s ease !important;
+    border: none !important;
+    cursor: pointer !important;
+    letter-spacing: 0.02em !important;
+}
+/* Primary investigate button */
+[data-testid="stSidebar"] .stButton:first-of-type > button {
+    background: linear-gradient(135deg, #1a56db, #1e40af) !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px rgba(26,86,219,0.4) !important;
+    width: 100% !important;
+}
+[data-testid="stSidebar"] .stButton:first-of-type > button:hover {
+    background: linear-gradient(135deg, #1d4ed8, #1e3a8a) !important;
+    box-shadow: 0 4px 16px rgba(26,86,219,0.5) !important;
+    transform: translateY(-1px) !important;
+}
+/* Clear button */
+[data-testid="stSidebar"] .stButton:last-of-type > button {
+    background: #1a2235 !important;
+    color: #8892a4 !important;
+    border: 1px solid #1e3050 !important;
+    width: 100% !important;
+}
+[data-testid="stSidebar"] .stButton:last-of-type > button:hover {
+    background: #1f2940 !important;
+    color: #c9d1e0 !important;
+    border-color: #3b5a8a !important;
+}
+/* Download buttons in main area */
+.main .stDownloadButton > button {
+    background: #101624 !important;
+    color: #3b9eff !important;
+    border: 1px solid #1e3a5f !important;
+    font-size: 12px !important;
+    padding: 6px 14px !important;
+}
+.main .stDownloadButton > button:hover {
+    background: #162035 !important;
+    color: #60b4ff !important;
+    border-color: #3b7dd8 !important;
+}
 
-/* ── Tabs ───────────────────────────────────────────────────── */
+/* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    background: #0d1526;
-    border-radius: 8px;
-    padding: 4px;
-    border: 1px solid #1e2d4a;
-    gap: 4px;
+    background: #0e1525;
+    border-bottom: 2px solid #162035;
+    padding: 0 4px;
+    gap: 0;
 }
 .stTabs [data-baseweb="tab"] {
-    color: #6c7086 !important;
-    background: transparent;
-    border-radius: 6px;
-    padding: 8px 16px;
-    font-weight: 500;
-    font-size: 13px;
+    background: transparent !important;
+    color: #5a6a80 !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    border-radius: 0 !important;
+    padding: 10px 18px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    margin-bottom: -2px;
+    transition: all 0.15s !important;
 }
+.stTabs [data-baseweb="tab"]:hover { color: #a0aec0 !important; background: #12192e !important; }
 .stTabs [aria-selected="true"] {
-    background: #1e3a5f !important;
-    color: #74c7ec !important;
+    color: #3b9eff !important;
+    border-bottom: 2px solid #3b9eff !important;
+    font-weight: 600 !important;
 }
+.stTabs [data-baseweb="tab-panel"] { padding: 20px 0 0 0; background: transparent; }
 
-/* ── Metric Cards ───────────────────────────────────────────── */
-[data-testid="stMetric"] {
-    background: #0d1526;
-    border: 1px solid #1e2d4a;
-    border-radius: 10px;
-    padding: 16px 20px;
-}
-[data-testid="stMetricLabel"] { color: #6c7086 !important; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
-[data-testid="stMetricValue"] { color: #cdd6f4 !important; font-size: 28px; font-weight: 700; }
+/* ── Native Metrics — hide, we use custom HTML cards ── */
+[data-testid="stMetric"] { display: none; }
 
-/* ── Tables ─────────────────────────────────────────────────── */
-.stDataFrame, [data-testid="stTable"] {
-    background: #0d1526 !important;
-    border: 1px solid #1e2d4a;
-    border-radius: 8px;
-}
-
-/* ── Expanders ──────────────────────────────────────────────── */
+/* ── Expander ── */
 [data-testid="stExpander"] {
-    background: #0d1526;
-    border: 1px solid #1e2d4a !important;
+    background: #0e1525 !important;
+    border: 1px solid #162035 !important;
+    border-radius: 8px !important;
+}
+[data-testid="stExpander"] summary {
+    color: #a0aec0 !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    padding: 10px 16px !important;
+}
+[data-testid="stExpander"] summary:hover { color: #c9d1e0 !important; }
+
+/* ── DataFrame ── */
+.stDataFrame { border: 1px solid #162035 !important; border-radius: 8px !important; overflow: hidden; }
+.stDataFrame thead th {
+    background: #0e1525 !important;
+    color: #8892a4 !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.06em !important;
+    border-bottom: 1px solid #162035 !important;
+}
+.stDataFrame tbody td { background: #0b0f1e !important; color: #c9d1e0 !important; font-size: 13px !important; border-bottom: 1px solid #0e1525 !important; }
+.stDataFrame tbody tr:hover td { background: #0e1525 !important; }
+
+/* ── Code ── */
+.stCodeBlock > div { background: #0a0e1c !important; border: 1px solid #162035 !important; border-radius: 6px !important; }
+code { font-family: 'JetBrains Mono', monospace !important; color: #a8d8a8 !important; font-size: 12px !important; }
+
+/* ── Progress bar ── */
+.stProgress { margin: 4px 0; }
+.stProgress > div > div { background: #3b9eff !important; border-radius: 2px !important; }
+
+/* ── Alerts & Messages ── */
+.stAlert { border-radius: 6px !important; border-left-width: 3px !important; font-size: 13px !important; }
+.stInfo { background: #0a1628 !important; border-color: #1a56db !important; color: #8bb8ff !important; }
+.stSuccess { background: #051a12 !important; border-color: #16a34a !important; color: #6ee09a !important; }
+.stError { background: #1a080a !important; border-color: #dc2626 !important; color: #fca5a5 !important; }
+.stWarning { background: #1a1208 !important; border-color: #d97706 !important; color: #fcd34d !important; }
+
+/* ── File Uploader ── */
+[data-testid="stFileUploader"] {
+    border: 1px dashed #1e3050 !important;
+    border-radius: 6px !important;
+    background: #0a0e1c !important;
+    padding: 8px !important;
+}
+
+/* ── Slider ── */
+.stSlider [data-baseweb="slider"] { background: #1e3050 !important; }
+
+/* ── JSON viewer ── */
+.stJson { background: #0a0e1c !important; border: 1px solid #162035 !important; border-radius: 6px !important; }
+
+/* ─── CUSTOM COMPONENT STYLES ─── */
+
+.soc-topbar {
+    background: linear-gradient(90deg, #090e1d 0%, #0d1528 40%, #0a1020 100%);
+    border-bottom: 1px solid #162035;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 0 -1.5rem 24px -1.5rem;
+}
+.soc-logo { display: flex; align-items: center; gap: 10px; }
+.soc-logo-icon { font-size: 26px; }
+.soc-logo-text { font-size: 17px; font-weight: 700; color: #e2e8f4; letter-spacing: -0.01em; }
+.soc-logo-sub  { font-size: 11px; color: #5a6a80; margin-top: 1px; }
+.soc-topbar-right { display: flex; align-items: center; gap: 20px; font-size: 12px; color: #5a6a80; }
+.soc-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; display: inline-block; margin-right: 5px; box-shadow: 0 0 5px #22c55e; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
+.metric-card {
+    background: #0e1525;
+    border: 1px solid #162035;
     border-radius: 8px;
-    margin-bottom: 8px;
+    padding: 16px 18px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
 }
-[data-testid="stExpander"] summary { color: #cdd6f4 !important; font-weight: 600; }
-
-/* ── Code Blocks ────────────────────────────────────────────── */
-.stCodeBlock { background: #11182b !important; border: 1px solid #1e2d4a; border-radius: 6px; }
-code { font-family: 'JetBrains Mono', monospace; color: #a6e3a1; font-size: 12px; }
-
-/* ── Text inputs ────────────────────────────────────────────── */
-.stTextInput>div>div>input,
-.stTextArea>div>div>textarea,
-.stSelectbox>div>div {
-    background: #0d1526 !important;
-    border: 1px solid #1e2d4a !important;
-    color: #cdd6f4 !important;
-    border-radius: 6px;
+.metric-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    border-radius: 8px 8px 0 0;
 }
+.metric-card:hover { border-color: #1e3a5f; }
+.metric-card.accent-blue::before { background: #1a56db; }
+.metric-card.accent-red::before { background: #dc2626; }
+.metric-card.accent-amber::before { background: #d97706; }
+.metric-card.accent-green::before { background: #16a34a; }
+.metric-card.accent-purple::before { background: #7c3aed; }
+.metric-card.accent-cyan::before { background: #0891b2; }
+.metric-card-icon { font-size: 18px; margin-bottom: 8px; }
+.metric-card-value { font-size: 30px; font-weight: 800; color: #e2e8f4; line-height: 1; letter-spacing: -0.02em; }
+.metric-card-label { font-size: 11px; color: #5a6a80; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; margin-top: 5px; }
+.metric-card-sub { font-size: 11px; color: #3b7dd8; margin-top: 3px; font-weight: 500; }
 
-/* ── Alerts ─────────────────────────────────────────────────── */
-.stAlert { border-radius: 8px; border-left-width: 4px; }
+.sev-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 14px; border-radius: 4px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.sev-CRITICAL { background: rgba(220,38,38,0.15); color: #f87171; border: 1px solid rgba(220,38,38,0.35); }
+.sev-HIGH     { background: rgba(217,119,6,0.15);  color: #fbbf24; border: 1px solid rgba(217,119,6,0.35); }
+.sev-MEDIUM   { background: rgba(234,179,8,0.12);  color: #facc15; border: 1px solid rgba(234,179,8,0.3); }
+.sev-LOW      { background: rgba(22,163,74,0.12);  color: #4ade80; border: 1px solid rgba(22,163,74,0.3); }
+.sev-FP       { background: rgba(59,154,255,0.12); color: #60a5fa; border: 1px solid rgba(59,154,255,0.3); }
 
-/* ── Progress bar ───────────────────────────────────────────── */
-.stProgress > div > div { background-color: #74c7ec !important; border-radius: 4px; }
+.decision-banner {
+    border-radius: 7px;
+    padding: 14px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    letter-spacing: 0.03em;
+}
+.db-tp       { background: rgba(220,38,38,0.1);  border: 1px solid rgba(220,38,38,0.3);  color: #f87171; }
+.db-incident { background: rgba(217,119,6,0.1);  border: 1px solid rgba(217,119,6,0.3);  color: #fbbf24; }
+.db-fp       { background: rgba(22,163,74,0.1);  border: 1px solid rgba(22,163,74,0.3);  color: #4ade80; }
+.db-susp     { background: rgba(234,179,8,0.1);  border: 1px solid rgba(234,179,8,0.3);  color: #facc15; }
+.db-benign   { background: rgba(59,154,255,0.1); border: 1px solid rgba(59,154,255,0.3); color: #60a5fa; }
 
-/* ── Custom Components ──────────────────────────────────────── */
-.soc-header {
-    background: linear-gradient(135deg, #0d1526 0%, #0a1937 50%, #0d1526 100%);
-    border: 1px solid #1e3a5f;
-    border-radius: 12px;
-    padding: 20px 28px;
-    margin-bottom: 24px;
+.widget {
+    background: #0e1525;
+    border: 1px solid #162035;
+    border-radius: 8px;
+    padding: 0;
+    overflow: hidden;
+    margin-bottom: 14px;
+}
+.widget-header {
+    background: #0a1020;
+    border-bottom: 1px solid #162035;
+    padding: 10px 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
-.soc-header-title { font-size: 22px; font-weight: 700; color: #74c7ec; }
-.soc-header-sub { font-size: 13px; color: #6c7086; margin-top: 2px; }
+.widget-title { font-size: 12px; font-weight: 700; color: #8892a4; text-transform: uppercase; letter-spacing: 0.07em; }
+.widget-body { padding: 16px; }
 
-.severity-badge {
-    display: inline-block;
-    padding: 4px 14px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-.severity-critical { background: rgba(243,76,80,0.15); color: #f38ba8; border: 1px solid rgba(243,76,80,0.4); }
-.severity-high     { background: rgba(250,179,135,0.15); color: #fab387; border: 1px solid rgba(250,179,135,0.4); }
-.severity-medium   { background: rgba(249,226,175,0.15); color: #f9e2af; border: 1px solid rgba(249,226,175,0.4); }
-.severity-low      { background: rgba(166,227,161,0.15); color: #a6e3a1; border: 1px solid rgba(166,227,161,0.4); }
-.severity-fp       { background: rgba(116,199,236,0.15); color: #74c7ec; border: 1px solid rgba(116,199,236,0.4); }
-
-.stat-card {
-    background: #0d1526;
-    border: 1px solid #1e2d4a;
-    border-radius: 10px;
-    padding: 18px 20px;
-    text-align: center;
-    transition: border-color 0.2s;
-}
-.stat-card:hover { border-color: #74c7ec; }
-.stat-card-value { font-size: 32px; font-weight: 700; color: #74c7ec; line-height: 1; }
-.stat-card-label { font-size: 11px; color: #6c7086; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 6px; }
-
-.timeline-item {
-    display: flex;
-    gap: 14px;
+.finding-row {
+    display: flex; align-items: flex-start; gap: 12px;
     padding: 10px 0;
-    border-bottom: 1px solid #1e2d4a;
-    align-items: flex-start;
+    border-bottom: 1px solid #0e1525;
+    font-size: 13px; color: #c9d1e0;
 }
-.timeline-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    margin-top: 5px;
-    flex-shrink: 0;
-}
-.timeline-dot-critical { background: #f38ba8; box-shadow: 0 0 6px #f38ba8; }
-.timeline-dot-high     { background: #fab387; box-shadow: 0 0 6px #fab387; }
-.timeline-dot-medium   { background: #f9e2af; box-shadow: 0 0 6px #f9e2af; }
-.timeline-dot-low      { background: #a6e3a1; box-shadow: 0 0 6px #a6e3a1; }
-.timeline-text { font-size: 13px; color: #cdd6f4; font-family: 'JetBrains Mono', monospace; }
+.finding-row:last-child { border-bottom: none; }
+.finding-num { color: #3b9eff; font-weight: 700; font-size: 11px; min-width: 22px; padding-top: 2px; }
 
-.ioc-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    margin-right: 4px;
-}
-.ioc-ip      { background: rgba(243,76,80,0.15); color: #f38ba8; }
-.ioc-hash    { background: rgba(203,166,247,0.15); color: #cba6f7; }
-.ioc-domain  { background: rgba(137,220,235,0.15); color: #89dceb; }
-.ioc-user    { background: rgba(249,226,175,0.15); color: #f9e2af; }
-.ioc-process { background: rgba(166,227,161,0.15); color: #a6e3a1; }
+.tl-row { display: flex; align-items: flex-start; gap: 14px; padding: 9px 0; border-bottom: 1px solid #0e1525; }
+.tl-row:last-child { border-bottom: none; }
+.tl-connector { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.tl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.tl-line { width: 1px; background: #162035; flex: 1; min-height: 10px; }
+.tl-text { font-size: 12px; color: #c9d1e0; font-family: 'JetBrains Mono', monospace; line-height: 1.5; }
 
-.mitre-card {
-    background: #0d1526;
-    border: 1px solid #1e2d4a;
-    border-left: 3px solid #74c7ec;
-    border-radius: 8px;
+.ioc-type-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 3px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-right: 4px;
+}
+.ib-ip      { background: rgba(220,38,38,0.15);  color: #f87171; }
+.ib-hash    { background: rgba(124,58,237,0.15); color: #c084fc; }
+.ib-domain  { background: rgba(8,145,178,0.15);  color: #22d3ee; }
+.ib-user    { background: rgba(234,179,8,0.15);  color: #facc15; }
+.ib-process { background: rgba(22,163,74,0.15);  color: #4ade80; }
+.ib-email   { background: rgba(217,119,6,0.15);  color: #fbbf24; }
+
+.mitre-row {
+    background: #0b0f1e;
+    border: 1px solid #162035;
+    border-left: 3px solid #1a56db;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+}
+.mitre-tid   { font-family: 'JetBrains Mono', monospace; color: #3b9eff; font-weight: 700; font-size: 13px; }
+.mitre-tname { color: #e2e8f4; font-weight: 600; font-size: 13px; margin-left: 8px; }
+.mitre-ev    { font-size: 12px; color: #5a6a80; margin-top: 5px; }
+.conf-high   { color: #f87171; font-size: 11px; font-weight: 700; float: right; background: rgba(220,38,38,0.1); padding: 2px 8px; border-radius: 3px; border: 1px solid rgba(220,38,38,0.25); }
+.conf-medium { color: #fbbf24; font-size: 11px; font-weight: 700; float: right; background: rgba(217,119,6,0.1);  padding: 2px 8px; border-radius: 3px; border: 1px solid rgba(217,119,6,0.25); }
+.conf-low    { color: #4ade80; font-size: 11px; font-weight: 700; float: right; background: rgba(22,163,74,0.1);  padding: 2px 8px; border-radius: 3px; border: 1px solid rgba(22,163,74,0.25); }
+
+.pb-card {
+    background: #0b0f1e;
+    border: 1px solid #162035;
+    border-radius: 7px;
     padding: 14px 18px;
     margin-bottom: 10px;
 }
-.mitre-id { font-family: 'JetBrains Mono', monospace; color: #74c7ec; font-weight: 700; font-size: 14px; }
-.mitre-name { color: #cdd6f4; font-weight: 600; margin-left: 10px; }
-.mitre-evidence { color: #6c7086; font-size: 12px; margin-top: 6px; }
+.pb-card-title { font-size: 13px; font-weight: 600; color: #e2e8f4; margin-bottom: 6px; }
+.pb-meta { font-size: 12px; color: #5a6a80; margin-bottom: 8px; }
+.appr-badge { display: inline-block; padding: 2px 9px; border-radius: 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.05em; }
+.appr-yes { background: rgba(220,38,38,0.15); color: #f87171; border: 1px solid rgba(220,38,38,0.3); }
+.appr-ro  { background: rgba(22,163,74,0.12); color: #4ade80; border: 1px solid rgba(22,163,74,0.25); }
 
-.playbook-action {
-    background: #0d1526;
-    border: 1px solid #1e2d4a;
-    border-radius: 8px;
-    padding: 16px 20px;
-    margin-bottom: 12px;
-}
-.playbook-action-title { color: #cdd6f4; font-weight: 600; font-size: 14px; }
-.approval-badge {
-    display: inline-block;
-    background: rgba(243,76,80,0.15);
-    color: #f38ba8;
-    border: 1px solid rgba(243,76,80,0.4);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
-}
-.readonly-badge {
-    display: inline-block;
-    background: rgba(166,227,161,0.15);
-    color: #a6e3a1;
-    border: 1px solid rgba(166,227,161,0.4);
-    border-radius: 4px;
-    padding: 2px 8px;
-    font-size: 11px;
-    font-weight: 700;
+.phase-header {
+    font-size: 13px; font-weight: 700; color: #8892a4;
+    text-transform: uppercase; letter-spacing: 0.07em;
+    padding: 10px 0 6px 0;
+    border-bottom: 1px solid #162035;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
 }
 
-.decision-box {
-    border-radius: 10px;
-    padding: 16px 24px;
-    font-size: 16px;
-    font-weight: 700;
+.rc-grid { display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 12px; }
+.rc-card { background: #0b0f1e; border: 1px solid #162035; border-radius: 7px; padding: 14px 16px; }
+.rc-card-label { font-size: 10px; font-weight: 700; color: #5a6a80; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 6px; }
+.rc-card-value { font-size: 13px; color: #c9d1e0; line-height: 1.5; }
+
+.steps-panel { background: #0b0f1e; border: 1px solid #162035; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; }
+.steps-title { font-size: 12px; font-weight: 700; color: #3b9eff; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 12px; }
+.step-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; color: #5a6a80; }
+.step-row.s-done   { color: #4ade80; }
+.step-row.s-active { color: #3b9eff; font-weight: 600; }
+
+.landing-hero {
     text-align: center;
-    letter-spacing: 0.05em;
-    margin: 12px 0;
+    padding: 60px 40px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(26,86,219,0.08) 0%, transparent 70%);
+    border: 1px solid #162035;
+    border-radius: 12px;
+    margin-top: 20px;
 }
-.decision-tp        { background: rgba(243,76,80,0.12); border: 2px solid #f38ba8; color: #f38ba8; }
-.decision-incident  { background: rgba(250,179,135,0.12); border: 2px solid #fab387; color: #fab387; }
-.decision-fp        { background: rgba(166,227,161,0.12); border: 2px solid #a6e3a1; color: #a6e3a1; }
-.decision-suspicious{ background: rgba(249,226,175,0.12); border: 2px solid #f9e2af; color: #f9e2af; }
-.decision-benign    { background: rgba(116,199,236,0.12); border: 2px solid #74c7ec; color: #74c7ec; }
-
-.progress-step {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-    font-size: 13px;
-    color: #6c7086;
+.landing-hero h1 { font-size: 32px; font-weight: 800; color: #e2e8f4; letter-spacing: -0.02em; margin-bottom: 10px; }
+.landing-hero p  { font-size: 15px; color: #5a6a80; margin-bottom: 32px; }
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; text-align: left; margin-top: 32px; }
+.feature-card {
+    background: #0e1525; border: 1px solid #162035; border-radius: 8px; padding: 18px 20px;
+    transition: border-color 0.2s;
 }
-.progress-step.done { color: #a6e3a1; }
-.progress-step.active { color: #74c7ec; }
-.step-icon { font-size: 16px; }
-
-.divider { border: none; border-top: 1px solid #1e2d4a; margin: 16px 0; }
+.feature-card:hover { border-color: #1e3a5f; }
+.feature-card-icon { font-size: 22px; margin-bottom: 8px; }
+.feature-card-title { font-size: 13px; font-weight: 700; color: #c9d1e0; margin-bottom: 4px; }
+.feature-card-desc  { font-size: 12px; color: #5a6a80; line-height: 1.5; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -283,17 +403,11 @@ code { font-family: 'JetBrains Mono', monospace; color: #a6e3a1; font-size: 12px
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────────────────────
 def init_state():
-    defaults = {
-        "investigation": None,
-        "iocs": None,
-        "events": None,
-        "mitre": None,
-        "risk": None,
-        "response": None,
-        "raw_logs": None,
-        "pipeline_done": False,
-    }
-    for k, v in defaults.items():
+    for k, v in {
+        "investigation": None, "iocs": None, "events": None,
+        "mitre": None, "risk": None, "response": None,
+        "raw_logs": None, "pipeline_done": False,
+    }.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
@@ -303,120 +417,158 @@ init_state()
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────────────────────────────────────
-def severity_badge(sev: str) -> str:
-    cls_map = {
-        "critical": "severity-critical",
-        "high":     "severity-high",
-        "medium":   "severity-medium",
-        "low":      "severity-low",
-        "false positive": "severity-fp",
-    }
-    cls = cls_map.get(str(sev).lower(), "severity-low")
-    return f'<span class="severity-badge {cls}">{sev}</span>'
+def sev_badge_html(sev: str) -> str:
+    s = str(sev).upper()
+    dot = {"CRITICAL":"🔴","HIGH":"🟠","MEDIUM":"🟡","LOW":"🟢"}.get(s,"🔵")
+    cls = {"CRITICAL":"CRITICAL","HIGH":"HIGH","MEDIUM":"MEDIUM","LOW":"LOW"}.get(s,"FP")
+    return f'<span class="sev-badge sev-{cls}">{dot} {s}</span>'
 
-
-def decision_box(decision: str) -> str:
+def decision_html(decision: str) -> str:
     d = str(decision).lower()
-    if "false positive" in d:
-        cls = "decision-fp"
-    elif "incident confirmed" in d:
-        cls = "decision-incident"
-    elif "true positive" in d:
-        cls = "decision-tp"
-    elif "suspicious" in d:
-        cls = "decision-suspicious"
-    else:
-        cls = "decision-benign"
-    return f'<div class="decision-box {cls}">🔍 {decision}</div>'
+    if "false positive" in d: cls, icon = "db-fp",      "✅"
+    elif "incident confirmed" in d: cls, icon = "db-incident", "🔥"
+    elif "true positive" in d: cls, icon = "db-tp",      "🚨"
+    elif "suspicious" in d:   cls, icon = "db-susp",    "⚠️"
+    else:                      cls, icon = "db-benign",  "ℹ️"
+    return f'<div class="decision-banner {cls}">{icon} &nbsp; ANALYST DECISION: &nbsp;<span style="color:inherit">{decision.upper()}</span></div>'
 
+def conf_html(conf: str) -> str:
+    c = str(conf).lower()
+    cls = "conf-high" if c=="high" else "conf-medium" if c=="medium" else "conf-low"
+    return f'<span class="{cls}">{conf.upper()}</span>'
 
-def timeline_dot_color(idx: int, total: int) -> str:
-    pct = idx / max(total - 1, 1)
-    if pct > 0.75:
-        return "timeline-dot-critical"
-    elif pct > 0.5:
-        return "timeline-dot-high"
-    elif pct > 0.25:
-        return "timeline-dot-medium"
-    return "timeline-dot-low"
+def ioc_badge_html(t: str) -> str:
+    t2 = t.lower()
+    cls = ("ib-ip" if t2 in ("ipv4","ip","ipv6")
+           else "ib-hash" if t2 in ("sha256","md5","sha1","hash")
+           else "ib-user" if t2 in ("users","user","username")
+           else "ib-process" if t2 in ("processes","process")
+           else "ib-email" if t2=="email"
+           else "ib-domain")
+    label = {"ipv4":"IP","sha256":"SHA256","md5":"MD5","sha1":"SHA1",
+             "users":"USER","processes":"PROCESS","email":"EMAIL"}.get(t2, t.upper())
+    return f'<span class="ioc-type-badge {cls}">{label}</span>'
 
+def tl_dot_color(i, total):
+    p = i / max(total-1, 1)
+    return ("#f87171" if p > 0.75 else "#fbbf24" if p > 0.5
+            else "#facc15" if p > 0.25 else "#4ade80")
 
-def ioc_badge(ioc_type: str) -> str:
-    cls_map = {
-        "ipv4": "ioc-ip", "ip": "ioc-ip",
-        "sha256": "ioc-hash", "md5": "ioc-hash", "sha1": "ioc-hash",
-        "domain": "ioc-domain",
-        "users": "ioc-user",
-        "processes": "ioc-process",
-        "email": "ioc-domain",
-    }
-    cls = cls_map.get(ioc_type.lower(), "ioc-domain")
-    label = ioc_type.upper().replace("IPV4", "IP")
-    return f'<span class="ioc-badge {cls}">{label}</span>'
+def make_gauge(score, severity):
+    color = {"Critical":"#f87171","High":"#fbbf24","Medium":"#facc15","Low":"#4ade80"}.get(severity,"#4ade80")
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=score,
+        number={"font":{"size":34,"color":color,"family":"Inter"},"suffix":"/100"},
+        gauge={
+            "axis":{"range":[0,100],"tickcolor":"#1e2d4a","tickfont":{"color":"#5a6a80","size":10}},
+            "bar":{"color":color,"thickness":0.25},
+            "bgcolor":"#0b0f1e",
+            "borderwidth":0,
+            "steps":[
+                {"range":[0,20],"color":"rgba(22,163,74,0.1)"},
+                {"range":[20,50],"color":"rgba(234,179,8,0.1)"},
+                {"range":[50,80],"color":"rgba(217,119,6,0.12)"},
+                {"range":[80,100],"color":"rgba(220,38,38,0.12)"},
+            ],
+            "threshold":{"line":{"color":color,"width":3},"thickness":0.8,"value":score},
+        }
+    ))
+    fig.update_layout(
+        height=180, margin=dict(l=20,r=20,t=20,b=10),
+        paper_bgcolor="#0e1525", plot_bgcolor="#0e1525",
+        font={"family":"Inter","color":"#5a6a80"},
+    )
+    return fig
 
+def make_ioc_pie(iocs):
+    labels, values, colors = [], [], []
+    color_map = {"ipv4":"#f87171","sha256":"#c084fc","md5":"#c084fc","domain":"#22d3ee",
+                 "users":"#facc15","processes":"#4ade80","email":"#fbbf24","sha1":"#c084fc"}
+    for t, v in iocs.items():
+        if v:
+            labels.append(t.upper())
+            values.append(len(v))
+            colors.append(color_map.get(t.lower(),"#60a5fa"))
+    if not labels:
+        return None
+    fig = go.Figure(go.Pie(
+        labels=labels, values=values,
+        marker=dict(colors=colors, line=dict(color="#0b0f1e", width=2)),
+        hole=0.55, textfont=dict(size=11, family="Inter"),
+        textinfo="label+percent",
+    ))
+    fig.update_layout(
+        height=220, margin=dict(l=10,r=10,t=10,b=10),
+        paper_bgcolor="#0e1525", plot_bgcolor="#0e1525",
+        font=dict(color="#8892a4", family="Inter"),
+        showlegend=False,
+    )
+    return fig
 
-def build_markdown_report() -> str:
+def make_mitre_bar(mitre):
+    if not mitre:
+        return None
+    ids   = [m.get("technique_id","?") for m in mitre]
+    confs = [{"High":3,"Medium":2,"Low":1}.get(m.get("confidence","Low"),1) for m in mitre]
+    colors= [{"High":"#f87171","Medium":"#fbbf24","Low":"#4ade80"}.get(m.get("confidence","Low"),"#4ade80") for m in mitre]
+    fig = go.Figure(go.Bar(
+        x=ids, y=confs,
+        marker=dict(color=colors, line=dict(color="#0b0f1e",width=1)),
+        text=[m.get("confidence","?") for m in mitre],
+        textposition="outside", textfont=dict(size=10,color="#8892a4"),
+    ))
+    fig.update_layout(
+        height=200, margin=dict(l=10,r=10,t=10,b=30),
+        paper_bgcolor="#0e1525", plot_bgcolor="#0e1525",
+        font=dict(color="#5a6a80",family="Inter"),
+        yaxis=dict(showticklabels=False,gridcolor="#0e1525",zeroline=False),
+        xaxis=dict(tickfont=dict(size=11,color="#8892a4")),
+        bargap=0.3,
+    )
+    return fig
+
+def build_md_report() -> str:
     inv  = st.session_state.investigation or {}
     risk = st.session_state.risk or {}
-    mitre = st.session_state.mitre or []
-    resp = st.session_state.response or {}
     iocs = st.session_state.iocs or {}
-    ts = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-
-    lines = [
-        f"# 🛡️ SOC Investigation Report",
-        f"**Generated:** {ts}",
-        f"",
-        f"## 🎯 Alert Severity & Classification",
+    mitre= st.session_state.mitre or []
+    resp = st.session_state.response or {}
+    ts   = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    L = [
+        "# 🛡️ AI SOC Analyst — Investigation Report",
+        f"**Generated:** {ts}", "",
+        "## Alert Classification",
         f"- **Severity:** {risk.get('severity','N/A')}",
         f"- **Risk Score:** {risk.get('score','N/A')}/100",
         f"- **Classification:** {inv.get('classification','N/A')}",
         f"- **Confidence:** {int(float(inv.get('confidence',0))*100)}%",
-        f"- **Decision:** {inv.get('decision','N/A')}",
-        f"",
-        f"## 🔍 Executive Summary",
-        inv.get("summary", "N/A"),
-        f"",
-        f"## 🔎 Investigation Findings",
+        f"- **Decision:** {inv.get('decision','N/A')}", "",
+        "## Executive Summary", inv.get("summary","N/A"), "",
+        "## Findings",
     ]
-    for f in inv.get("findings", []):
-        lines.append(f"- {f}")
-
-    lines += ["", "## 🧭 Attack Timeline"]
-    for t in inv.get("timeline", []):
-        lines.append(f"- {t}")
-
-    lines += ["", "## 🧩 Indicators of Compromise"]
-    lines.append("| Type | Indicator |")
-    lines.append("|------|-----------|")
-    for ioc_type, values in iocs.items():
-        for v in values:
-            lines.append(f"| {ioc_type.upper()} | `{v}` |")
-
-    lines += ["", "## 🧠 Root Cause Analysis"]
-    rc = inv.get("root_cause", {})
-    lines.append(f"**Cause:** {rc.get('cause','N/A')}")
-    lines.append(f"**Evidence:** {rc.get('evidence','N/A')}")
-    lines.append(f"**Confidence:** {rc.get('confidence','N/A')}")
-
-    lines += ["", "## 📌 MITRE ATT&CK Mapping"]
-    lines.append("| ID | Technique | Evidence | Confidence |")
-    lines.append("|----|-----------|----------|------------|")
+    for f in inv.get("findings",[]): L.append(f"- {f}")
+    L += ["","## Timeline"]
+    for t in inv.get("timeline",[]): L.append(f"- {t}")
+    L += ["","## IOCs","| Type | Indicator |","|------|-----------|"]
+    for t,vs in iocs.items():
+        for v in vs: L.append(f"| {t.upper()} | `{v}` |")
+    L += ["","## Root Cause"]
+    rc = inv.get("root_cause",{})
+    L += [f"- **Cause:** {rc.get('cause','N/A')}",
+          f"- **Evidence:** {rc.get('evidence','N/A')}",
+          f"- **Confidence:** {rc.get('confidence','N/A')}"]
+    L += ["","## MITRE ATT&CK","| ID | Technique | Evidence | Confidence |","|----|-----------|----------|------------|"]
     for m in mitre:
-        lines.append(f"| {m.get('technique_id','N/A')} | {m.get('technique_name','N/A')} | {m.get('evidence','N/A')} | {m.get('confidence','N/A')} |")
-
-    for phase in ["containment", "eradication", "recovery", "remediation"]:
-        lines += ["", f"## 🛡️ {phase.capitalize()}"]
-        for a in resp.get(phase, []):
-            lines.append(f"- **{a.get('action','N/A')}** — _{a.get('reason','N/A')}_")
-            lines.append(f"  - Command: `{a.get('command_example','N/A')}`")
-            lines.append(f"  - Risk: {a.get('risk','N/A')} | Requires Approval: {a.get('requires_approval','YES')}")
-
-    lines += ["", "## ⚠️ Additional Evidence Required"]
-    for e in inv.get("additional_evidence_required", []):
-        lines.append(f"- {e}")
-
-    return "\n".join(lines)
+        L.append(f"| {m.get('technique_id','?')} | {m.get('technique_name','?')} | {m.get('evidence','?')} | {m.get('confidence','?')} |")
+    for ph in ["containment","eradication","recovery","remediation"]:
+        L += ["",f"## {ph.capitalize()}"]
+        for a in resp.get(ph,[]):
+            L.append(f"- **{a.get('action','?')}** — {a.get('reason','?')}")
+            L.append(f"  - `{a.get('command_example','?')}` | Risk: {a.get('risk','?')} | Approval: {a.get('requires_approval','YES')}")
+    L += ["","## Additional Evidence Required"]
+    for e in inv.get("additional_evidence_required",[]): L.append(f"- {e}")
+    return "\n".join(L)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -424,51 +576,45 @@ def build_markdown_report() -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("""
-    <div style='text-align:center; padding: 10px 0 20px 0;'>
-        <div style='font-size:36px;'>🛡️</div>
-        <div style='font-size:16px; font-weight:700; color:#74c7ec;'>AI SOC Analyst</div>
-        <div style='font-size:11px; color:#6c7086; margin-top:2px;'>Incident Response Platform</div>
+    <div style="padding:20px 16px 16px;border-bottom:1px solid #162035;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:28px;">🛡️</span>
+            <div>
+                <div style="font-size:15px;font-weight:800;color:#e2e8f4;letter-spacing:-0.01em;">AI SOC Analyst</div>
+                <div style="font-size:10px;color:#3b7dd8;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">Incident Response Platform</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("#### ⚙️ LLM Configuration")
-    api_key  = st.text_input("API Key", type="password", placeholder="gsk_... or sk-...")
+    st.markdown('<div style="font-size:10px;font-weight:700;color:#5a6a80;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">LLM Configuration</div>', unsafe_allow_html=True)
+    api_key  = st.text_input("API Key", type="password", placeholder="gsk_... or sk-or-...")
     base_url = st.text_input("Base URL", value="https://api.groq.com/openai/v1")
-    model    = st.text_input("Model", value="llama-3.1-70b-versatile",
-                             help="Groq: llama-3.1-70b-versatile | OpenRouter: openai/gpt-4o-mini")
+    model    = st.text_input("Model", value="llama-3.1-70b-versatile")
 
-    st.markdown("---")
-    st.markdown("#### 📁 Log Ingestion")
-    uploaded_files = st.file_uploader(
-        "Upload Log Files",
-        accept_multiple_files=True,
-        type=["txt", "log", "csv", "json"],
-        help="Supports .txt .log .csv .json"
-    )
-    raw_logs_text = st.text_area(
-        "Or Paste Raw Logs",
-        height=160,
-        placeholder="Paste any log format here…"
-    )
+    st.markdown('<hr style="border:none;border-top:1px solid #162035;margin:14px 0;">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:10px;font-weight:700;color:#5a6a80;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">Log Ingestion</div>', unsafe_allow_html=True)
 
-    st.markdown("---")
-    col_a, col_b = st.columns(2)
-    start_btn = col_a.button("🔍 Investigate", type="primary", use_container_width=True)
-    clear_btn = col_b.button("🗑️ Clear", use_container_width=True)
+    uploaded_files = st.file_uploader("Upload Files", accept_multiple_files=True,
+                                       type=["txt","log","csv","json"])
+    raw_logs_text = st.text_area("Paste Raw Logs", height=140,
+                                  placeholder="Paste any log format here…\nWindows Event / Sysmon / Firewall / Auth / IDS / DNS…")
+
+    st.markdown('<hr style="border:none;border-top:1px solid #162035;margin:14px 0;">', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    start_btn = c1.button("🔍 Investigate", type="primary", use_container_width=True)
+    clear_btn = c2.button("🗑️ Clear", use_container_width=True)
 
     if clear_btn:
-        st.session_state.clear()
-        init_state()
-        st.rerun()
+        st.session_state.clear(); init_state(); st.rerun()
 
-    st.markdown("---")
     st.markdown("""
-    <div style='font-size:11px; color:#45475a; line-height:1.6;'>
-    <b style='color:#6c7086;'>Supported Log Types</b><br>
-    Windows Event Logs · Sysmon<br>
-    Firewall · VPN · Auth Logs<br>
-    EDR · IDS/IPS · DNS · Proxy<br>
-    Web Server · Email Security
+    <hr style="border:none;border-top:1px solid #162035;margin:14px 0;">
+    <div style="font-size:10px;color:#37404f;line-height:1.8;">
+        <span style="color:#5a6a80;font-weight:700;">Supported Log Types</span><br>
+        Windows Events · Sysmon · Defender<br>
+        Firewall · VPN · Auth · Linux Auth<br>
+        EDR · IDS/IPS · DNS · Proxy · Web
     </div>
     """, unsafe_allow_html=True)
 
@@ -478,94 +624,66 @@ with st.sidebar:
 # ─────────────────────────────────────────────────────────────────────────────
 def run_pipeline():
     if not api_key:
-        st.error("⚠️ API Key is required. Enter it in the sidebar.")
-        return
+        st.error("⚠️  Enter your LLM API Key in the sidebar to start."); return
 
-    raw_text = raw_logs_text or ""
+    raw = raw_logs_text or ""
     if uploaded_files:
         for f in uploaded_files:
-            try:
-                raw_text += "\n" + f.getvalue().decode("utf-8", errors="ignore")
-            except Exception as e:
-                st.warning(f"Could not read {f.name}: {e}")
+            try: raw += "\n" + f.getvalue().decode("utf-8", errors="ignore")
+            except Exception as e: st.warning(f"Could not read {f.name}: {e}")
+    if not raw.strip():
+        st.error("No logs provided. Upload a file or paste raw logs."); return
 
-    if not raw_text.strip():
-        st.error("No logs provided. Upload a file or paste raw logs.")
-        return
-
-    st.session_state.raw_logs = raw_text
-
-    # ── Stage-by-stage progress UI ────────────────────────────────────────────
-    progress_container = st.empty()
+    st.session_state.raw_logs = raw
     stages = [
-        ("📂", "Parsing logs"),
-        ("🔎", "Extracting IOCs"),
-        ("🤖", "Running AI investigation"),
-        ("🗺️", "Mapping MITRE ATT&CK"),
-        ("📊", "Calculating risk score"),
-        ("📋", "Generating IR playbook"),
+        ("📂","Parsing & normalizing logs"),
+        ("🔎","Extracting IOCs"),
+        ("🤖","AI investigation — stage analysis"),
+        ("🗺️","Mapping MITRE ATT&CK techniques"),
+        ("📊","Calculating risk score"),
+        ("📋","Generating IR playbook"),
     ]
+    prog = st.empty()
 
-    def render_progress(done_idx: int):
-        html = "<div style='background:#0d1526;border:1px solid #1e2d4a;border-radius:10px;padding:16px 20px;'>"
-        html += "<div style='font-size:13px;font-weight:700;color:#74c7ec;margin-bottom:12px;'>🔄 Investigation Pipeline</div>"
-        for i, (icon, label) in enumerate(stages):
-            if i < done_idx:
-                html += f"<div class='progress-step done'><span class='step-icon'>✅</span>{label}</div>"
-            elif i == done_idx:
-                html += f"<div class='progress-step active'><span class='step-icon'>{icon}</span><b>{label}…</b></div>"
-            else:
-                html += f"<div class='progress-step'><span class='step-icon'>{icon}</span>{label}</div>"
-        html += "</div>"
-        progress_container.markdown(html, unsafe_allow_html=True)
+    def show_prog(done):
+        rows = ""
+        for i,(icon,label) in enumerate(stages):
+            if i < done:   rows += f'<div class="step-row s-done">✅ {label}</div>'
+            elif i == done: rows += f'<div class="step-row s-active">{icon} <b>{label}…</b></div>'
+            else:           rows += f'<div class="step-row">{icon} {label}</div>'
+        prog.markdown(f'<div class="steps-panel"><div class="steps-title">🔄 Investigation Pipeline Running</div>{rows}</div>',
+                      unsafe_allow_html=True)
 
     try:
-        # Stage 0: Parse
-        render_progress(0)
-        events = LogParser.parse_logs(raw_text)
+        show_prog(0)
+        events = LogParser.parse_logs(raw)
         st.session_state.events = events
 
-        # Stage 1: IOC Extraction
-        render_progress(1)
+        show_prog(1)
         iocs = IOCExtractor.extract(events)
         st.session_state.iocs = iocs
 
-        # Stage 2: Investigate (limit to 80 events to stay within token budget)
-        render_progress(2)
+        show_prog(2)
         client = LLMClient(api_key=api_key, base_url=base_url, model=model)
-        investigator = Investigator(client)
-        limited_events = events[:80]
-        inv_result = investigator.investigate(limited_events, iocs)
+        inv = Investigator(client).investigate(events[:80], iocs)
+        if "error" in inv:
+            prog.empty(); st.error(f"AI Error: {inv['error']}"); return
+        st.session_state.investigation = inv
 
-        if "error" in inv_result:
-            progress_container.empty()
-            st.error(f"AI Investigation Error: {inv_result['error']}")
-            return
+        show_prog(3)
+        st.session_state.mitre = MitreMapper(client).map_to_mitre(inv, events[:80])
 
-        st.session_state.investigation = inv_result
+        show_prog(4)
+        st.session_state.risk = RiskEngine.calculate_risk(inv, iocs)
 
-        # Stage 3: MITRE
-        render_progress(3)
-        mitre_mapper = MitreMapper(client)
-        st.session_state.mitre = mitre_mapper.map_to_mitre(inv_result, limited_events)
+        show_prog(5)
+        st.session_state.response = ResponseEngine(client).generate_playbook(inv, iocs)
 
-        # Stage 4: Risk
-        render_progress(4)
-        st.session_state.risk = RiskEngine.calculate_risk(inv_result, iocs)
-
-        # Stage 5: Playbook
-        render_progress(5)
-        resp_engine = ResponseEngine(client)
-        st.session_state.response = resp_engine.generate_playbook(inv_result, iocs)
-
-        render_progress(len(stages))
         st.session_state.pipeline_done = True
-        progress_container.empty()
-        st.rerun()
+        prog.empty(); st.rerun()
 
     except Exception as e:
-        progress_container.empty()
-        st.error(f"Pipeline Error: {e}")
+        prog.empty(); st.error(f"Pipeline Error: {e}")
 
 
 if start_btn:
@@ -573,363 +691,432 @@ if start_btn:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# LANDING STATE
+# LANDING
 # ─────────────────────────────────────────────────────────────────────────────
 if not st.session_state.pipeline_done:
+    # Top bar
     st.markdown("""
-    <div class='soc-header'>
-        <div>
-            <div class='soc-header-title'>🛡️ AI SOC Analyst — Incident Response Platform</div>
-            <div class='soc-header-sub'>Paste or upload security logs → Click Investigate → Receive a full SOC investigation report</div>
+    <div class="soc-topbar">
+        <div class="soc-logo">
+            <span class="soc-logo-icon">🛡️</span>
+            <div>
+                <div class="soc-logo-text">AI SOC Analyst</div>
+                <div class="soc-logo-sub">Incident Response &amp; Threat Investigation Platform</div>
+            </div>
         </div>
-        <div style='font-size:12px; color:#45475a; text-align:right;'>
-            Powered by LLM + MITRE ATT&CK<br>
-            Evidence-Based · Agentic · Safe
+        <div class="soc-topbar-right">
+            <span><span class="soc-status-dot"></span>System Ready</span>
+            <span>No Active Investigation</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.markdown("""
-        <div class='stat-card'>
-            <div class='stat-card-value'>🔍</div>
-            <div class='stat-card-label'>Agentic Investigation</div>
-        </div>""", unsafe_allow_html=True)
-    with col2:
-        st.markdown("""
-        <div class='stat-card'>
-            <div class='stat-card-value'>🧠</div>
-            <div class='stat-card-label'>MITRE ATT&CK Mapping</div>
-        </div>""", unsafe_allow_html=True)
-    with col3:
-        st.markdown("""
-        <div class='stat-card'>
-            <div class='stat-card-value'>📋</div>
-            <div class='stat-card-label'>IR Playbook Generation</div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.info("👈 Configure your API key and paste security logs in the sidebar, then click **Investigate**.")
+    st.markdown("""
+    <div class="landing-hero">
+        <h1>Automated SOC Investigation</h1>
+        <p>Upload security logs and let the AI perform a complete Tier-3 SOC analysis —<br>
+        from raw logs to MITRE ATT&CK mapping and Incident Response playbook.</p>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-card-icon">🔎</div>
+                <div class="feature-card-title">Agentic Investigation</div>
+                <div class="feature-card-desc">5-stage AI analysis pipeline: alert validation, IOC analysis, timeline, correlation, attack detection.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon">🗺️</div>
+                <div class="feature-card-title">MITRE ATT&CK Mapping</div>
+                <div class="feature-card-desc">Evidence-based technique identification. No keyword guessing — every mapping has log evidence.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon">🛡️</div>
+                <div class="feature-card-title">IR Playbook Generation</div>
+                <div class="feature-card-desc">Full containment, eradication, recovery and remediation plan — with analyst approval gates on all actions.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon">🧩</div>
+                <div class="feature-card-title">IOC Extraction</div>
+                <div class="feature-card-desc">Auto-extract IPs, hashes, domains, users, processes from any log format.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon">📊</div>
+                <div class="feature-card-title">Risk Scoring</div>
+                <div class="feature-card-desc">0–100 risk score with severity classification and factor breakdown.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-card-icon">📥</div>
+                <div class="feature-card-title">Multi-Format Input</div>
+                <div class="feature-card-desc">Supports .txt .log .csv .json and paste. Works with Windows Events, Sysmon, Firewall, Auth, EDR, and more.</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DASHBOARD — DATA
 # ─────────────────────────────────────────────────────────────────────────────
-inv   = st.session_state.investigation or {}
-risk  = st.session_state.risk or {}
-iocs  = st.session_state.iocs or {}
-mitre = st.session_state.mitre or []
-resp  = st.session_state.response or {}
+inv    = st.session_state.investigation or {}
+risk   = st.session_state.risk or {}
+iocs   = st.session_state.iocs or {}
+mitre  = st.session_state.mitre or []
+resp   = st.session_state.response or {}
 events = st.session_state.events or []
 
-severity   = risk.get("severity", "Unknown")
+severity   = risk.get("severity","Unknown")
 risk_score = risk.get("score", 0)
 confidence = int(float(inv.get("confidence", 0)) * 100)
-decision   = inv.get("decision", "UNKNOWN")
+decision   = inv.get("decision","UNKNOWN")
 total_iocs = sum(len(v) for v in iocs.values())
+total_acts = sum(len(resp.get(p,[])) for p in ["containment","eradication","recovery","remediation"])
 
-# ── Header ────────────────────────────────────────────────────────────────────
+# ── Top Bar ──
+ts_now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
 st.markdown(f"""
-<div class='soc-header'>
-    <div>
-        <div class='soc-header-title'>🛡️ AI SOC Analyst</div>
-        <div class='soc-header-sub'>{inv.get('classification','Unknown Classification')} &nbsp;·&nbsp; {severity} Severity</div>
-    </div>
-    <div style='text-align:right;'>
-        {severity_badge(severity)}
-        <div style='font-size:11px;color:#45475a;margin-top:6px;'>
-            {datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")}
+<div class="soc-topbar">
+    <div class="soc-logo">
+        <span class="soc-logo-icon">🛡️</span>
+        <div>
+            <div class="soc-logo-text">AI SOC Analyst</div>
+            <div class="soc-logo-sub">{inv.get('classification','Unknown Classification')}</div>
         </div>
+    </div>
+    <div class="soc-topbar-right">
+        <span>{sev_badge_html(severity)}</span>
+        <span style="color:#5a6a80">{ts_now}</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ── Metric Row ────────────────────────────────────────────────────────────────
-m1, m2, m3, m4, m5, m6 = st.columns(6)
-m1.metric("🎯 Risk Score",    f"{risk_score}/100")
-m2.metric("📊 Confidence",    f"{confidence}%")
-m3.metric("🔎 IOCs Found",    total_iocs)
-m4.metric("📅 Events",        len(events))
-m5.metric("🗺️ MITRE Techs",  len(mitre))
-m6.metric("📋 Actions",       sum(len(resp.get(p,[])) for p in ["containment","eradication","recovery","remediation"]))
+# ── Decision Banner ──
+st.markdown(decision_html(decision), unsafe_allow_html=True)
 
-# ── Decision Banner ───────────────────────────────────────────────────────────
-st.markdown(decision_box(decision), unsafe_allow_html=True)
+# ── 6-Metric Row ──
+m = [
+    ("accent-red",    "🎯", str(risk_score), "/100", "Risk Score"),
+    ("accent-amber",  "📊", f"{confidence}%", "",    "AI Confidence"),
+    ("accent-purple", "🧩", str(total_iocs),  "",    "IOCs Extracted"),
+    ("accent-blue",   "📋", str(len(events)), "",    "Log Events"),
+    ("accent-cyan",   "🗺️", str(len(mitre)),  "",    "MITRE Techniques"),
+    ("accent-green",  "🛡️", str(total_acts),  "",    "Response Actions"),
+]
+cols = st.columns(6)
+for col, (accent, icon, val, suf, label) in zip(cols, m):
+    col.markdown(f"""
+    <div class="metric-card {accent}">
+        <div class="metric-card-icon">{icon}</div>
+        <div class="metric-card-value">{val}<span style="font-size:14px;color:#5a6a80">{suf}</span></div>
+        <div class="metric-card-label">{label}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
-# ── Export Row ────────────────────────────────────────────────────────────────
-exp1, exp2, exp3 = st.columns([1, 1, 4])
-md_report = build_markdown_report()
-exp1.download_button(
-    "⬇️ Export Markdown",
-    data=md_report,
-    file_name="soc_report.md",
-    mime="text/markdown",
-    use_container_width=True,
-)
-json_report = json.dumps({
-    "investigation": inv, "risk": risk, "iocs": iocs,
-    "mitre": mitre, "response": resp
-}, indent=2)
-exp2.download_button(
-    "⬇️ Export JSON",
-    data=json_report,
-    file_name="soc_investigation.json",
-    mime="application/json",
-    use_container_width=True,
-)
+# ── Export Row ──
+st.markdown("<div style='margin:12px 0 4px 0;'>", unsafe_allow_html=True)
+ec1, ec2, ec3 = st.columns([1,1,5])
+ec1.download_button("⬇️ Markdown Report", data=build_md_report(),
+                    file_name="soc_report.md", mime="text/markdown", use_container_width=True)
+ec2.download_button("⬇️ JSON Export",
+                    data=json.dumps({"investigation":inv,"risk":risk,"iocs":iocs,"mitre":mitre,"response":resp},indent=2),
+                    file_name="soc_investigation.json", mime="application/json", use_container_width=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+st.markdown("<div style='margin:8px 0;'>", unsafe_allow_html=True)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────────────────────────────────────
-tab_overview, tab_invest, tab_timeline, tab_ioc, tab_mitre, tab_response, tab_evidence = st.tabs([
-    "📊 Overview",
-    "🔎 Investigation",
-    "🧭 Timeline",
-    "🧩 IOCs",
-    "🗺️ MITRE ATT&CK",
-    "🛡️ Response",
-    "📂 Evidence",
+t1,t2,t3,t4,t5,t6,t7 = st.tabs([
+    "📊  Overview", "🔎  Investigation", "🧭  Timeline",
+    "🧩  IOCs", "🗺️  MITRE ATT&CK", "🛡️  Response", "📂  Evidence",
 ])
 
 
-# ── TAB: Overview ─────────────────────────────────────────────────────────────
-with tab_overview:
-    col_left, col_right = st.columns([3, 2])
+# ── TAB 1: Overview ──────────────────────────────────────────────────────────
+with t1:
+    left, right = st.columns([3, 2])
 
-    with col_left:
-        st.markdown("#### 📋 Executive Summary")
+    with left:
+        # Executive Summary widget
         st.markdown(f"""
-        <div style='background:#0d1526;border:1px solid #1e2d4a;border-radius:8px;padding:16px 20px;
-                    font-size:14px;line-height:1.7;color:#cdd6f4;'>
-            {inv.get("summary", "No summary generated.")}
-        </div>
-        """, unsafe_allow_html=True)
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("#### ⚠️ Risk Factors")
-        for factor in risk.get("factors", []):
-            st.markdown(f"<div style='color:#a6adc8;font-size:13px;padding:4px 0;'>▸ {factor}</div>",
-                        unsafe_allow_html=True)
-
-    with col_right:
-        st.markdown("#### 🎯 Severity Gauge")
-        bar_color = "#f38ba8" if severity == "Critical" else \
-                    "#fab387" if severity == "High" else \
-                    "#f9e2af" if severity == "Medium" else "#a6e3a1"
-
-        st.markdown(f"""
-        <div style='background:#0d1526;border:1px solid #1e2d4a;border-radius:10px;padding:20px;text-align:center;'>
-            <div style='font-size:52px;font-weight:700;color:{bar_color};line-height:1;'>{risk_score}</div>
-            <div style='font-size:13px;color:#6c7086;margin:4px 0 12px 0;'>Risk Score / 100</div>
-            <div style='background:#11182b;border-radius:8px;height:10px;overflow:hidden;'>
-                <div style='width:{risk_score}%;height:100%;background:{bar_color};border-radius:8px;'></div>
+        <div class="widget">
+            <div class="widget-header">
+                <span class="widget-title">📋 Executive Summary</span>
+                <span style="font-size:10px;color:#3b7dd8;">MANAGEMENT BRIEF</span>
             </div>
-            <div style='margin-top:12px;'>{severity_badge(severity)}</div>
+            <div class="widget-body" style="font-size:13px;color:#c9d1e0;line-height:1.75;">
+                {inv.get("summary","No summary available.")}
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.markdown("#### 🏷️ Classification")
+        # Risk Factors widget
+        factors = risk.get("factors", [])
+        rows = "".join(
+            f'<div class="finding-row"><span class="finding-num">▸</span>{f}</div>'
+            for f in factors
+        ) or '<div style="color:#5a6a80;font-size:13px;padding:8px 0;">No risk factors recorded.</div>'
         st.markdown(f"""
-        <div style='background:#0d1526;border:1px solid #1e2d4a;border-radius:8px;padding:14px 18px;'>
-            <div style='font-size:16px;font-weight:600;color:#cdd6f4;'>{inv.get("classification","N/A")}</div>
-            <div style='font-size:13px;color:#6c7086;margin-top:4px;'>Confidence: {confidence}%</div>
+        <div class="widget">
+            <div class="widget-header">
+                <span class="widget-title">⚠️ Risk Factors</span>
+            </div>
+            <div class="widget-body">{rows}</div>
         </div>
         """, unsafe_allow_html=True)
 
+    with right:
+        # Gauge
+        st.markdown("""
+        <div class="widget">
+            <div class="widget-header"><span class="widget-title">🎯 Risk Gauge</span></div>
+        """, unsafe_allow_html=True)
+        st.plotly_chart(make_gauge(risk_score, severity), use_container_width=True,
+                        config={"displayModeBar":False})
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# ── TAB: Investigation ────────────────────────────────────────────────────────
-with tab_invest:
-    st.markdown("#### 🔎 Investigation Findings")
-    findings = inv.get("findings", [])
-    if findings:
-        for i, finding in enumerate(findings, 1):
+        # Classification card
+        st.markdown(f"""
+        <div class="widget">
+            <div class="widget-header"><span class="widget-title">🏷️ Classification</span></div>
+            <div class="widget-body">
+                <div style="font-size:17px;font-weight:700;color:#e2e8f4;margin-bottom:6px;">
+                    {inv.get('classification','N/A')}
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+                    {sev_badge_html(severity)}
+                    <span style="font-size:12px;color:#5a6a80;">Confidence: <b style="color:#3b9eff;">{confidence}%</b></span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # IOC pie
+        pie = make_ioc_pie(iocs)
+        if pie:
+            st.markdown("""
+            <div class="widget">
+                <div class="widget-header"><span class="widget-title">🧩 IOC Distribution</span></div>
+            """, unsafe_allow_html=True)
+            st.plotly_chart(pie, use_container_width=True, config={"displayModeBar":False})
+            st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ── TAB 2: Investigation ─────────────────────────────────────────────────────
+with t2:
+    col_f, col_rc = st.columns([3,2])
+
+    with col_f:
+        findings = inv.get("findings", [])
+        rows = "".join(
+            f'<div class="finding-row"><span class="finding-num">#{i}</span>{f}</div>'
+            for i,f in enumerate(findings,1)
+        ) or '<div style="color:#5a6a80;padding:8px 0;font-size:13px;">No findings generated.</div>'
+        st.markdown(f"""
+        <div class="widget">
+            <div class="widget-header">
+                <span class="widget-title">🔎 Investigation Findings</span>
+                <span style="font-size:10px;color:#5a6a80;">{len(findings)} findings</span>
+            </div>
+            <div class="widget-body">{rows}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_rc:
+        rc = inv.get("root_cause", {})
+        st.markdown(f"""
+        <div class="widget">
+            <div class="widget-header"><span class="widget-title">🧠 Root Cause Analysis</span></div>
+            <div class="widget-body">
+                <div class="rc-grid">
+                    <div class="rc-card">
+                        <div class="rc-card-label">Confidence</div>
+                        <div style="font-size:18px;font-weight:800;color:#e2e8f4;">{rc.get('confidence','N/A')}</div>
+                    </div>
+                    <div class="rc-card" style="grid-column:span 2;">
+                        <div class="rc-card-label">Root Cause</div>
+                        <div class="rc-card-value">{rc.get('cause','Not determined')}</div>
+                    </div>
+                    <div class="rc-card" style="grid-column:span 3;">
+                        <div class="rc-card-label">Supporting Evidence</div>
+                        <div class="rc-card-value" style="color:#8892a4;">{rc.get('evidence','Not present in supplied logs.')}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        add_ev = inv.get("additional_evidence_required", [])
+        if add_ev:
+            rows_ev = "".join(
+                f'<div style="font-size:12px;color:#fbbf24;padding:5px 0;border-bottom:1px solid #0e1525;">⚠️ {e}</div>'
+                for e in add_ev
+            )
             st.markdown(f"""
-            <div style='background:#0d1526;border:1px solid #1e2d4a;border-left:3px solid #74c7ec;
-                        border-radius:8px;padding:12px 18px;margin-bottom:8px;font-size:13px;color:#cdd6f4;'>
-                <b style='color:#74c7ec;'>#{i}</b> &nbsp; {finding}
+            <div class="widget" style="margin-top:14px;">
+                <div class="widget-header"><span class="widget-title">⚠️ Additional Evidence Needed</span></div>
+                <div class="widget-body">{rows_ev}</div>
             </div>
             """, unsafe_allow_html=True)
-    else:
-        st.info("No findings generated.")
-
-    st.markdown("---")
-    st.markdown("#### 🧠 Root Cause Analysis")
-    rc = inv.get("root_cause", {})
-    if rc:
-        col_rc1, col_rc2, col_rc3 = st.columns([2, 3, 1])
-        col_rc1.markdown(f"""
-        <div class='stat-card'>
-            <div style='font-size:13px;font-weight:700;color:#f9e2af;'>Root Cause</div>
-            <div style='font-size:13px;color:#cdd6f4;margin-top:6px;'>{rc.get("cause","N/A")}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        col_rc2.markdown(f"""
-        <div class='stat-card'>
-            <div style='font-size:13px;font-weight:700;color:#74c7ec;'>Evidence</div>
-            <div style='font-size:13px;color:#a6adc8;margin-top:6px;'>{rc.get("evidence","N/A")}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        col_rc3.markdown(f"""
-        <div class='stat-card'>
-            <div style='font-size:13px;font-weight:700;color:#a6e3a1;'>Confidence</div>
-            <div style='font-size:22px;font-weight:700;color:#cdd6f4;margin-top:6px;'>{rc.get("confidence","N/A")}</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("#### ⚠️ Additional Evidence Required")
-    add_ev = inv.get("additional_evidence_required", [])
-    if add_ev:
-        for ev in add_ev:
-            st.markdown(f"<div style='color:#f9e2af;font-size:13px;padding:3px 0;'>⚠️ {ev}</div>",
-                        unsafe_allow_html=True)
-    else:
-        st.success("No additional evidence flagged.")
 
 
-# ── TAB: Timeline ─────────────────────────────────────────────────────────────
-with tab_timeline:
-    st.markdown("#### 🧭 Attack Timeline")
+# ── TAB 3: Timeline ──────────────────────────────────────────────────────────
+with t3:
     timeline = inv.get("timeline", [])
-    if timeline:
+    if not timeline:
+        st.info("No timeline data generated.")
+    else:
         total = len(timeline)
-        html = "<div style='padding: 8px 0;'>"
-        for i, event in enumerate(timeline):
-            dot_cls = timeline_dot_color(i, total)
-            html += f"""
-            <div class='timeline-item'>
-                <div class='timeline-dot {dot_cls}'></div>
-                <div class='timeline-text'>{event}</div>
+        rows = ""
+        for i, ev in enumerate(timeline):
+            dc = tl_dot_color(i, total)
+            line = "" if i == total-1 else f'<div class="tl-line"></div>'
+            rows += f"""
+            <div class="tl-row">
+                <div class="tl-connector">
+                    <div class="tl-dot" style="background:{dc};box-shadow:0 0 5px {dc};"></div>
+                    {line}
+                </div>
+                <div class="tl-text">{ev}</div>
+            </div>"""
+
+        st.markdown(f"""
+        <div class="widget">
+            <div class="widget-header">
+                <span class="widget-title">🧭 Attack Timeline</span>
+                <span style="font-size:10px;color:#5a6a80;">{total} events</span>
             </div>
-            """
-        html += "</div>"
-        st.markdown(html, unsafe_allow_html=True)
-    else:
-        st.info("No timeline events generated.")
+            <div class="widget-body">{rows}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
-# ── TAB: IOCs ─────────────────────────────────────────────────────────────────
-with tab_ioc:
-    st.markdown("#### 🧩 Indicators of Compromise")
-
+# ── TAB 4: IOCs ──────────────────────────────────────────────────────────────
+with t4:
     if not iocs:
-        st.info("No IOCs extracted.")
+        st.info("No IOCs extracted from the provided logs.")
     else:
-        # Summary row
-        ioc_cols = st.columns(len(iocs))
-        for i, (ioc_type, values) in enumerate(iocs.items()):
-            ioc_cols[i].markdown(f"""
-            <div class='stat-card'>
-                <div class='stat-card-value'>{len(values)}</div>
-                <div class='stat-card-label'>{ioc_type.upper()}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        # Summary cards
+        cols_ioc = st.columns(min(len(iocs), 6))
+        accent_cycle = ["accent-red","accent-purple","accent-cyan","accent-amber","accent-green","accent-blue"]
+        for col, (ioc_type, vals), acc in zip(cols_ioc, iocs.items(), accent_cycle):
+            col.markdown(f"""
+            <div class="metric-card {acc}">
+                <div class="metric-card-value">{len(vals)}</div>
+                <div class="metric-card-label">{ioc_type.upper()}</div>
+            </div>""", unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<div style='margin:16px 0 8px 0;'>", unsafe_allow_html=True)
 
-        # Full IOC table
-        rows = []
-        for ioc_type, values in iocs.items():
-            for v in values:
-                rows.append({"Type": ioc_type.upper(), "Indicator": v})
-        if rows:
-            df = pd.DataFrame(rows)
+        # Full table
+        rows_d = [{"Type": ioc_badge_html(t)+"&nbsp;"+t.upper(), "Indicator": v}
+                  for t, vs in iocs.items() for v in vs]
+        if rows_d:
+            df = pd.DataFrame([{"Type": t.upper(), "Indicator": v}
+                                for t, vs in iocs.items() for v in vs])
             st.dataframe(df, use_container_width=True, hide_index=True)
-
-            # CSV export
             csv = df.to_csv(index=False)
-            st.download_button("⬇️ Export IOCs (CSV)", data=csv,
+            st.download_button("⬇️ Export IOCs as CSV", data=csv,
                                file_name="iocs.csv", mime="text/csv")
 
 
-# ── TAB: MITRE ATT&CK ────────────────────────────────────────────────────────
-with tab_mitre:
-    st.markdown("#### 🗺️ MITRE ATT&CK Technique Mapping")
+# ── TAB 5: MITRE ATT&CK ──────────────────────────────────────────────────────
+with t5:
     if not mitre:
-        st.info("No MITRE techniques mapped.")
+        st.info("No MITRE ATT&CK techniques mapped.")
     else:
-        for tech in mitre:
-            conf = str(tech.get("confidence", "")).lower()
-            badge_color = "#f38ba8" if conf == "high" else \
-                          "#f9e2af" if conf == "medium" else "#a6e3a1"
-            st.markdown(f"""
-            <div class='mitre-card'>
-                <div>
-                    <span class='mitre-id'>{tech.get("technique_id","N/A")}</span>
-                    <span class='mitre-name'>{tech.get("technique_name","N/A")}</span>
-                    <span style='float:right;padding:2px 10px;border-radius:12px;font-size:11px;
-                                 font-weight:700;background:rgba(0,0,0,0.3);color:{badge_color};
-                                 border:1px solid {badge_color};'>
-                        {tech.get("confidence","N/A")} Confidence
-                    </span>
+        left_m, right_m = st.columns([2, 3])
+
+        with left_m:
+            bar = make_mitre_bar(mitre)
+            if bar:
+                st.markdown("""
+                <div class="widget">
+                    <div class="widget-header"><span class="widget-title">📊 Technique Confidence</span></div>
+                """, unsafe_allow_html=True)
+                st.plotly_chart(bar, use_container_width=True, config={"displayModeBar":False})
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        with right_m:
+            st.markdown("""
+            <div class="widget">
+                <div class="widget-header">
+                    <span class="widget-title">🗺️ Mapped Techniques</span>
                 </div>
-                <div class='mitre-evidence'>Evidence: {tech.get("evidence","N/A")}</div>
-            </div>
+                <div class="widget-body">
             """, unsafe_allow_html=True)
+            for tech in mitre:
+                chtml = conf_html(tech.get("confidence","?"))
+                st.markdown(f"""
+                <div class="mitre-row">
+                    <div>
+                        <span class="mitre-tid">{tech.get('technique_id','?')}</span>
+                        <span class="mitre-tname">{tech.get('technique_name','?')}</span>
+                        {chtml}
+                    </div>
+                    <div class="mitre-ev">Evidence: {tech.get('evidence','N/A')}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div></div>", unsafe_allow_html=True)
 
 
-# ── TAB: Response ─────────────────────────────────────────────────────────────
-with tab_response:
-    st.markdown("#### 🛡️ Incident Response Playbook")
+# ── TAB 6: Response ───────────────────────────────────────────────────────────
+with t6:
     if not resp or "error" in resp:
-        st.error("Playbook generation failed or no response data.")
+        st.error("Playbook generation failed.")
     else:
-        phase_icons = {
-            "containment":  ("🔒", "#f38ba8"),
-            "eradication":  ("🧹", "#fab387"),
-            "recovery":     ("♻️", "#a6e3a1"),
-            "remediation":  ("🔧", "#74c7ec"),
-        }
-        for phase, (icon, color) in phase_icons.items():
+        phase_cfg = [
+            ("containment",  "🔒", "#f87171", "Containment Actions"),
+            ("eradication",  "🧹", "#fbbf24", "Eradication Actions"),
+            ("recovery",     "♻️", "#4ade80", "Recovery Actions"),
+            ("remediation",  "🔧", "#60a5fa", "Remediation Actions"),
+        ]
+        for phase, icon, color, label in phase_cfg:
             actions = resp.get(phase, [])
             if not actions:
                 continue
             st.markdown(f"""
-            <div style='font-size:15px;font-weight:700;color:{color};
-                        margin:16px 0 8px 0;padding-bottom:4px;
-                        border-bottom:1px solid #1e2d4a;'>
-                {icon} {phase.capitalize()} Actions ({len(actions)})
+            <div class="phase-header" style="color:{color};">
+                {icon} {label}
+                <span style="font-size:11px;color:#5a6a80;margin-left:auto;">{len(actions)} actions</span>
             </div>
             """, unsafe_allow_html=True)
 
-            for action in actions:
-                requires = action.get("requires_approval", "YES")
-                approval_html = (
-                    '<span class="approval-badge">⚠️ REQUIRES APPROVAL</span>'
-                    if str(requires).upper() == "YES"
-                    else '<span class="readonly-badge">✅ READ-ONLY</span>'
-                )
+            for act in actions:
+                req = act.get("requires_approval","YES")
+                appr_html = (f'<span class="appr-badge appr-yes">⚠️ REQUIRES APPROVAL</span>'
+                             if str(req).upper()=="YES"
+                             else f'<span class="appr-badge appr-ro">✅ READ-ONLY</span>')
                 st.markdown(f"""
-                <div class='playbook-action'>
-                    <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;'>
-                        <div class='playbook-action-title'>{action.get("action","N/A")}</div>
-                        {approval_html}
+                <div class="pb-card">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <div class="pb-card-title">{act.get('action','N/A')}</div>
+                        {appr_html}
                     </div>
-                    <div style='font-size:12px;color:#6c7086;margin-bottom:8px;'>
-                        <b>Target:</b> {action.get("target","N/A")} &nbsp;|&nbsp;
-                        <b>Risk:</b> {action.get("risk","N/A")} &nbsp;|&nbsp;
-                        <b>Reason:</b> {action.get("reason","N/A")}
+                    <div class="pb-meta">
+                        <b>Target:</b> {act.get('target','N/A')} &nbsp;|&nbsp;
+                        <b>Risk:</b> {act.get('risk','N/A')} &nbsp;|&nbsp;
+                        <b>Reason:</b> {act.get('reason','N/A')}
                     </div>
                 """, unsafe_allow_html=True)
-                cmd = action.get("command_example", "")
+                cmd = act.get("command_example","")
                 if cmd:
                     st.code(cmd, language="bash")
                 st.markdown("</div>", unsafe_allow_html=True)
 
 
-# ── TAB: Evidence ─────────────────────────────────────────────────────────────
-with tab_evidence:
-    st.markdown("#### 📂 Raw Ingested Events")
-    show_count = st.slider("Show events", 5, min(200, len(events)), 20)
-    st.json(events[:show_count])
-    if len(events) > show_count:
-        st.caption(f"Showing {show_count} of {len(events)} total events.")
+# ── TAB 7: Evidence ───────────────────────────────────────────────────────────
+with t7:
+    st.markdown("""
+    <div class="widget">
+        <div class="widget-header"><span class="widget-title">📂 Parsed Log Events</span></div>
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.markdown("---")
-    with st.expander("📝 Raw Log Text"):
-        st.text(st.session_state.raw_logs[:5000] if st.session_state.raw_logs else "No raw logs.")
+    show_n = st.slider("Show events", 5, min(200, max(len(events),5)), min(20, len(events)))
+    st.json(events[:show_n])
+    if len(events) > show_n:
+        st.caption(f"Showing {show_n} of {len(events)} total events.")
+
+    with st.expander("📝 Original Raw Log Text"):
+        raw_l = st.session_state.raw_logs or ""
+        st.text(raw_l[:8000] + ("\n... (truncated)" if len(raw_l)>8000 else ""))
