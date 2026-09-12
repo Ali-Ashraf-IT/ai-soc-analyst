@@ -408,7 +408,7 @@ code { font-family: 'JetBrains Mono', monospace !important; color: #a8d8a8 !impo
 # ─────────────────────────────────────────────────────────────────────────────
 def init_state():
     for k, v in {
-        "investigation": None, "iocs": None, "events": None,
+        "investigation": None, "iocs": None, "events": None, "detected_sources": [],
         "mitre": None, "risk": None, "response": None,
         "raw_logs": None, "pipeline_done": False,
     }.items():
@@ -660,8 +660,11 @@ def run_pipeline():
 
     try:
         show_prog(0)
-        events = LogParser.parse_logs(raw)
+        parsed = LogParser.parse_logs(raw)
+        events = parsed["events"]
+        detected_sources = parsed["detected_sources"]
         st.session_state.events = events
+        st.session_state.detected_sources = detected_sources
 
         show_prog(1)
         iocs = IOCExtractor.extract(events)
@@ -669,7 +672,7 @@ def run_pipeline():
 
         show_prog(2)
         client = LLMClient(api_key=api_key, base_url=base_url, model=model)
-        inv = Investigator(client).investigate(events[:80], iocs)
+        inv = Investigator(client).investigate(events[:80], iocs, detected_sources)
         if "error" in inv:
             prog.empty(); st.error(f"AI Error: {inv['error']}"); return
         st.session_state.investigation = inv
@@ -681,7 +684,7 @@ def run_pipeline():
         st.session_state.risk = RiskEngine.calculate_risk(inv, iocs)
 
         show_prog(5)
-        st.session_state.response = ResponseEngine(client).generate_playbook(inv, iocs)
+        st.session_state.response = ResponseEngine(client).generate_playbook(inv, iocs, detected_sources)
 
         st.session_state.pipeline_done = True
         prog.empty(); st.rerun()
@@ -776,6 +779,9 @@ total_acts = sum(len(resp.get(p,[])) for p in ["containment","eradication","reco
 
 # ── Top Bar ──
 ts_now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+det_srcs = st.session_state.detected_sources or ["Generic Security Log"]
+src_badges = " ".join(f'<span style="background:rgba(59,154,255,0.15);color:#60a5fa;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;border:1px solid rgba(59,154,255,0.3);">💻 {s}</span>' for s in det_srcs)
+
 st.markdown(f"""
 <div class="soc-topbar">
     <div class="soc-logo">
@@ -786,8 +792,9 @@ st.markdown(f"""
         </div>
     </div>
     <div class="soc-topbar-right">
+        <div>{src_badges}</div>
         <span>{sev_badge_html(severity)}</span>
-        <span style="color:#5a6a80">{ts_now}</span>
+        <span style="color:#cbd5e1;font-weight:600">{ts_now}</span>
     </div>
 </div>
 """, unsafe_allow_html=True)
