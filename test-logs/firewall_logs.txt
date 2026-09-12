@@ -1,0 +1,15 @@
+<14>Sep 12 03:10:01 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41001 DPT=21 LEN=60
+<14>Sep 12 03:10:02 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41002 DPT=22 LEN=60
+<14>Sep 12 03:10:02 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41003 DPT=23 LEN=60
+<14>Sep 12 03:10:03 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41004 DPT=80 LEN=60
+<14>Sep 12 03:10:03 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41005 DPT=443 LEN=60
+<14>Sep 12 03:10:04 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41006 DPT=3306 LEN=60
+<14>Sep 12 03:10:04 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41007 DPT=3389 LEN=60
+<14>Sep 12 03:10:05 fw01 kernel: DENY SRC=185.220.101.5 DST=10.0.0.15 PROTO=TCP SPT=41008 DPT=8080 LEN=60
+<11>Sep 12 03:11:15 fw01 sshd[8801]: Failed password for invalid user admin from 185.220.101.5 port 41101 ssh2
+<11>Sep 12 03:11:16 fw01 sshd[8802]: Failed password for invalid user root from 185.220.101.5 port 41102 ssh2
+<11>Sep 12 03:11:17 fw01 sshd[8803]: Failed password for invalid user test from 185.220.101.5 port 41103 ssh2
+<11>Sep 12 03:11:18 fw01 sshd[8804]: Failed password for invalid user ubuntu from 185.220.101.5 port 41104 ssh2
+<11>Sep 12 03:11:19 fw01 sshd[8805]: Failed password for invalid user oracle from 185.220.101.5 port 41105 ssh2
+<11>Sep 12 03:11:20 fw01 sshd[8806]: Failed password for invalid user support from 185.220.101.5 port 41106 ssh2
+<11>Sep 12 03:11:21 fw01 sshd[8807]: Accepted password for admin from 185.220.101.5 port 41107 ssh2

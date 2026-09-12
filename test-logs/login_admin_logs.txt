@@ -1,0 +1,13 @@
+Event ID: 4625 | 2026-09-12 03:15:01 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:04 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:07 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:10 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:13 | Account: admin | Source IP: 203.0.113.44 | Reason: Account currently locked out
+Event ID: 4625 | 2026-09-12 03:15:16 | Account: sysadmin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:19 | Account: administrator | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:22 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:25 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4625 | 2026-09-12 03:15:28 | Account: admin | Source IP: 203.0.113.44 | Reason: Unknown user name or bad password
+Event ID: 4624 | 2026-09-12 03:15:32 | Account: admin | Source IP: 203.0.113.44 | Logon Type: 3 (Network) | Note: Successful logon after 10 prior failures, off-hours (03:15 AM)
+Event ID: 4672 | 2026-09-12 03:15:33 | Account: admin | Note: Special privileges assigned to new logon (Administrator rights)
+Event ID: 4720 | 2026-09-12 03:17:02 | Account: admin | Note: A new user account 'svc_temp' was created
