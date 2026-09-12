@@ -79,7 +79,7 @@ Before setting up the project, make sure you have:
    ```
    LLM_API_KEY=your_api_key_here
    LLM_BASE_URL=https://api.groq.com/openai/v1
-   LLM_MODEL=llama-3.1-70b-versatile
+   LLM_MODEL=openai/gpt-oss-120b
    ```
    *(You can skip this and enter the same values directly in the app's sidebar instead — useful for quick local testing.)*
 
