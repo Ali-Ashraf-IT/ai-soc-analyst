@@ -33,4 +33,9 @@ Investigation Results:
 Return the JSON mapping.
 """
         result = self.llm_client.generate_json(system_prompt, user_prompt)
-        return result.get("mitre_attack", [])
+        
+        if isinstance(result, list):
+            return result
+        elif isinstance(result, dict):
+            return result.get("mitre_attack", [])
+        return []

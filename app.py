@@ -661,30 +661,38 @@ def run_pipeline():
     try:
         show_prog(0)
         parsed = LogParser.parse_logs(raw)
-        events = parsed["events"]
-        detected_sources = parsed["detected_sources"]
+        events = parsed.get("events", []) if isinstance(parsed, dict) else []
+        detected_sources = parsed.get("detected_sources", ["Generic Security Log"]) if isinstance(parsed, dict) else ["Generic Security Log"]
         st.session_state.events = events
         st.session_state.detected_sources = detected_sources
 
         show_prog(1)
         iocs = IOCExtractor.extract(events)
+        if not isinstance(iocs, dict): iocs = {}
         st.session_state.iocs = iocs
 
         show_prog(2)
         client = LLMClient(api_key=api_key, base_url=base_url, model=model)
         inv = Investigator(client).investigate(events[:80], iocs, detected_sources)
+        if not isinstance(inv, dict): inv = {}
         if "error" in inv:
             prog.empty(); st.error(f"AI Error: {inv['error']}"); return
         st.session_state.investigation = inv
 
         show_prog(3)
-        st.session_state.mitre = MitreMapper(client).map_to_mitre(inv, events[:80])
+        mitre_res = MitreMapper(client).map_to_mitre(inv, events[:80])
+        if not isinstance(mitre_res, list): mitre_res = []
+        st.session_state.mitre = mitre_res
 
         show_prog(4)
-        st.session_state.risk = RiskEngine.calculate_risk(inv, iocs)
+        risk_res = RiskEngine.calculate_risk(inv, iocs)
+        if not isinstance(risk_res, dict): risk_res = {}
+        st.session_state.risk = risk_res
 
         show_prog(5)
-        st.session_state.response = ResponseEngine(client).generate_playbook(inv, iocs, detected_sources)
+        resp_res = ResponseEngine(client).generate_playbook(inv, iocs, detected_sources)
+        if not isinstance(resp_res, dict): resp_res = {}
+        st.session_state.response = resp_res
 
         st.session_state.pipeline_done = True
         prog.empty(); st.rerun()

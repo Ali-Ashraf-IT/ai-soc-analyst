@@ -55,4 +55,9 @@ Normalized Events:
 Perform a comprehensive analysis.
 """
         result = self.llm_client.generate_json(system_prompt, user_prompt)
-        return result
+        
+        if isinstance(result, dict):
+            return result
+        elif isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+            return result[0]
+        return {"error": "Invalid response format from LLM"}

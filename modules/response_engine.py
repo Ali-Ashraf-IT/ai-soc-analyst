@@ -52,4 +52,7 @@ IOCs:
 Generate the environment-aware incident response playbook.
 """
         result = self.llm_client.generate_json(system_prompt, user_prompt)
-        return result
+        
+        if isinstance(result, dict):
+            return result
+        return {"containment": [], "eradication": [], "recovery": [], "remediation": []}

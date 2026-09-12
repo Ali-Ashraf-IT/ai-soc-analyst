@@ -23,23 +23,31 @@ def _get_secret(key: str, default: str = None):
     return os.getenv(key, default)
 
 
-def _extract_json_from_text(text: str) -> dict:
+def _extract_json_from_text(text: str):
     """
-    Fallback: extract a JSON object from raw LLM text even if the model
+    Fallback: extract a JSON object or list from raw LLM text even if the model
     did not strictly obey json_object response_format.
     """
     # Try direct parse first
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
+    except Exception:
         pass
 
     # Try to find the first {...} block
-    match = re.search(r'\{[\s\S]*\}', text)
-    if match:
+    match_obj = re.search(r'\{[\s\S]*\}', text)
+    if match_obj:
         try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
+            return json.loads(match_obj.group(0))
+        except Exception:
+            pass
+
+    # Try to find the first [...] block
+    match_arr = re.search(r'\[[\s\S]*\]', text)
+    if match_arr:
+        try:
+            return json.loads(match_arr.group(0))
+        except Exception:
             pass
 
     # Return a structured error if nothing worked
