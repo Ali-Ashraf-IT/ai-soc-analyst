@@ -140,7 +140,7 @@ ai-soc-analyst/
 
 - **Phase 1 (Current MVP):** Upload-based log analysis
 - **Phase 2:** Live Syslog/webhook streaming for continuous monitoring
-- **Phase 3:** SOAR integration for one-click automated response + local LLM support (Ollama/vLLM)
+- **Phase 3:** Proof-of-concept SOAR integration with a single vendor (e.g., firewall or EDR API) + human-confirmed execute workflow, plus local LLM support (Ollama/vLLM)
 
 ---
 
@@ -148,7 +148,13 @@ ai-soc-analyst/
 
 Built by the team for Pak Angels Cohort 11 Mid-Term Hackathon.
 
----
+- Ali Ashraf 
+- Maryam Abdul Rauf 
+- Hasham Khan 
+- Safura Sohail 
+- Muhammad Usman
+- Reyyan Aleem
+
 
 ## ⚠️ Disclaimer
 
