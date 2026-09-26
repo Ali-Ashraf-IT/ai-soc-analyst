@@ -22,7 +22,6 @@ class WazuhClient:
         return response.json()
 
     def get_alerts(self, size=20):
-
         response = requests.get(
             f"{self.base_url}/alerts",
             headers=self.headers,
