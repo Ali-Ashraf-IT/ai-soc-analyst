@@ -4,8 +4,9 @@ import pandas as pd
 import datetime
 import plotly.graph_objects as go
 import plotly.express as px
+wazuh_url = st.secrets.get("WAZUH_BRIDGE_URL", "")
+wazuh_token = st.secrets.get("WAZUH_BRIDGE_TOKEN", "")
 
-from modules.wazuh_client import WazuhClient
 from modules.log_parser import LogParser
 from modules.ioc_extractor import IOCExtractor
 from modules.llm_client import LLMClient
@@ -13,9 +14,9 @@ from modules.investigator import Investigator
 from modules.mitre_mapper import MitreMapper
 from modules.risk_engine import RiskEngine
 from modules.response_engine import ResponseEngine
+from modules.wazuh_client import WazuhClient
 
-wazuh_url = st.secrets.get("WAZUH_BRIDGE_URL", "")
-wazuh_token = st.secrets.get("WAZUH_BRIDGE_TOKEN", "")
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
